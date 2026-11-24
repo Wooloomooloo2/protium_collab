@@ -10,6 +10,14 @@ written. "Known problems" is a heading of our own, next to Keep a Changelog's.
 
 ## [Unreleased]
 
+### Fixed
+
+- Games that keep their saves in Documents, such as Horizon Zero Dawn Remastered, started without
+  the saves Steam Cloud had brought down. Steam and the game were using two different folders.
+  They now use the same one, and saves already downloaded are moved to where the game finds them.
+  Where both folders had a save of the same name, the newer one is used and the older one is kept
+  in "My Documents (older copies)".
+
 ## [0.3.1] - 2026-11-24
 
 ### Added

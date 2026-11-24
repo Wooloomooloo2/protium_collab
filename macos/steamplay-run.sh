@@ -149,6 +149,45 @@ if [ ! -f "$prefix/system.reg" ]; then
     log "creating the prefix in $prefix"
     "$WINE_INSTALL/bin/wine" wineboot -u >/dev/null 2>&1 || die "wineboot failed in $prefix"
 fi
+# Steam puts a game's cloud saves for its Documents folder in users/steamuser/My Documents, while
+# Wine and the game call that folder Documents; with two folders the game found none of its saves.
+# "My Documents" is made a link to Documents, so that both names are the one folder. Steam syncs
+# before the game starts, often before the prefix is made, so a real folder of that name may be
+# there already: its files go into Documents, and where Documents has a different file of the same
+# name, the newer one stays there. The older copies are kept in "My Documents (older copies)".
+link_my_documents() {
+    local user_dir=$1 old new rel f kept
+    old="$user_dir/My Documents"
+    new="$user_dir/Documents"
+    [ -L "$old" ] && return 0
+    mkdir -p "$new"
+    if [ -d "$old" ]; then
+        while IFS= read -r -d '' f; do
+            rel=${f#"$old"/}
+            mkdir -p "$(dirname "$new/$rel")"
+            if [ ! -e "$new/$rel" ] && [ ! -L "$new/$rel" ]; then
+                mv "$f" "$new/$rel"
+            elif cmp -s "$f" "$new/$rel"; then
+                rm -f "$f"
+            elif [ "$f" -nt "$new/$rel" ]; then
+                # swap them: the newer into Documents, the older left behind with the old folder
+                mv "$new/$rel" "$f.protium-swap"
+                mv "$f" "$new/$rel"
+                mv "$f.protium-swap" "$f"
+            fi
+        done < <(find "$old" \( -type f -o -type l \) -print0)
+        if [ -z "$(find "$old" \( -type f -o -type l \) -print -quit)" ]; then
+            rm -rf "$old"
+        else
+            kept="$user_dir/My Documents (older copies)"
+            [ -e "$kept" ] && kept="$kept $(date +%Y%m%d-%H%M%S)"
+            mv "$old" "$kept"
+            log "older copies of files in My Documents are kept in $kept"
+        fi
+    fi
+    ln -s Documents "$old"
+}
+link_my_documents "$prefix/drive_c/users/steamuser"
 # Proton's wine.inf registers its fonts by file name (arial.ttf, tahoma.ttf, ...), and Proton's
 # script links the files into the prefix's Fonts folder. DirectWrite lists what it finds there
 # and nothing else: with the folder empty it had no Tahoma, and the browser of the Rockstar Games
